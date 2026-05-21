@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Last Spark - Jump Game</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #1a1a2e;
+            font-family: 'Arial', sans-serif;
+            color: white;
+            overflow: hidden;
+        }
+
+        #app {
+            text-align: center;
+        }
+
+        .game-container {
+            width: 600px;
+            height: 200px;
+            border: 4px solid #444;
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(to bottom, #1a1a2e, #16213e);
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        /* Pip - The Protagonist */
+        .player {
+            width: 40px;
+            height: 40px;
+            background: #e67e22;
+            box-shadow: 0 0 15px #e67e22;
+            border-radius: 4px;
+            position: absolute;
+            left: 50px;
+            transform-origin: bottom center;
+            will-change: bottom, transform;
+        }
+
+        /* Pure CSS Squash-and-Stretch Aesthetics */
+        .player.jumping-up {
+            transform: scaleX(0.85) scaleY(1.15);
+        }
+
+        .player.falling-down {
+            transform: scaleX(0.9) scaleY(1.1);
+        }
+
+        .player.landing-squash {
+            animation: landSquash 0.15s ease-out forwards;
+        }
+
+        @keyframes landSquash {
+            0% { transform: scaleX(1.3) scaleY(0.7); }
+            100% { transform: scaleX(1) scaleY(1); }
+        }
+
+        .obstacle {
+            width: 30px;
+            height: 30px;
+            background: #e94560;
+            box-shadow: 0 0 10px #e94560;
+            position: absolute;
+            bottom: 0;
+            will-change: left;
+        }
+
+        .score-board {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #f7dc6f;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 18px;
+            background: #e67e22;
+            border: none;
+            color: white;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        button:hover {
+            background: #d35400;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div class="score-board">Score: {{ score }}</div>
+    
+    <div class="game-container">
+        <div v-if="gameOver" class="overlay">
+            <h1>GAME OVER</h1>
+            <p>Final Score: {{ score }}</p>
+            <button @click="resetGame">Restart Game</button>
+        </div>
+
+        <!-- Bind class states based on jump directions -->
+        <div class="player" 
+             :class="{
+                'jumping-up': isJumping && velocityY > 0,
+                'falling-down': isJumping && velocityY < 0,
+                'landing-squash': isLanding
+             }"
+             :style="{ bottom: playerY + 'px' }"></div>
+
+        <div class="obstacle" :style="{ left: obstacleX + 'px' }"></div>
+    </div>
+    <p>Press <strong>SPACE</strong> to Jump</p>
+</div>
+
+<script>
+    const { createApp } = Vue;
+
+    createApp({
+        data() {
+            return {
+                score: 0,
+                gameOver: false,
+                playerY: 0,
+                velocityY: 0,
+                gravity: 0.6,
+                jumpForce: 11.5,
+                isJumping: false,
+                isLanding: false,
+                obstacleX: 600,
+                speed: 6,
+                animationId: null
+            }
+        },
+        methods: {
+            gameLoop() {
+                if (this.gameOver) return;
+
+                // 1. Process Core Jump Physics
+                if (this.isJumping) {
+                    this.playerY += this.velocityY;
+                    this.velocityY -= this.gravity; // Gravity pulls the player down continuously
+
+                    // Floor Collision Check
+                    if (this.playerY <= 0) {
+                        this.playerY = 0;
+                        this.velocityY = 0;
+                        this.isJumping = false;
+                        
+                        // Trigger landing stretch animation
+                        this.isLanding = true;
+                        setTimeout(() => {
+                            this.isLanding = false;
+                        }, 150);
+                    }
+                }
+
+                // 2. Move obstacle
+                this.obstacleX -= this.speed;
+
+                // Reset obstacle and increment score
+                if (this.obstacleX < -30) {
+                    this.obstacleX = 650;
+                    this.incrementScore();
+                }
+
+                this.checkCollision();
+                this.animationId = requestAnimationFrame(this.gameLoop);
+            },
+            jump() {
+                if (this.isJumping || this.gameOver) return;
+                this.isJumping = true;
+                this.isLanding = false;
+                this.velocityY = this.jumpForce; // Apply immediate upward force vector
+            },
+            checkCollision() {
+                const playerLeft = 50;
+                const playerRight = 90;
+                const playerBottom = this.playerY;
+                const playerTop = this.playerY + 40;
+
+                const obstacleLeft = this.obstacleX;
+                const obstacleRight = this.obstacleX + 30;
+                const obstacleTop = 30;
+
+                // Box-to-box checking across all coordinates
+                if (
+                    obstacleLeft < playerRight && 
+                    obstacleRight > playerLeft && 
+                    playerBottom < obstacleTop
+                ) {
+                    this.gameOver = true;
+                    cancelAnimationFrame(this.animationId);
+                }
+            },
+            incrementScore() {
+                this.score++;
+                if (this.score % 5 === 0) {
+                    this.speed += 0.5;
+                }
+            },
+            resetGame() {
+                this.score = 0;
+                this.gameOver = false;
+                this.obstacleX = 600;
+                this.speed = 6;
+                this.playerY = 0;
+                this.velocityY = 0;
+                this.isJumping = false;
+                this.isLanding = false;
+                this.gameLoop();
+            }
+        },
+        mounted() {
+            window.addEventListener('keydown', (e) => {
+                if (e.code === 'Space') {
+                    e.preventDefault(); // Stop webpage scrolling down when space is pressed
+                    this.jump();
+                }
+            });
+            this.gameLoop();
+        }
+    }).mount('#app');
+</script>
+
+</body>
+</html>
